@@ -42,7 +42,19 @@ _EXCLUDED_CONTENT_TYPES: Final = (
 def _handle_response_start(
     responder: IdentityResponder | GZipResponder, message: Message
 ) -> None:
-    """Handle http.response.start message for media-aware responders."""
+    """Handle http.response.start message for media-aware responders.
+
+    This function extracts headers from the response start message and determines
+    whether the content should be excluded from compression based on its type.
+
+    Parameters
+    ----------
+    responder
+        The responder instance (either IdentityResponder or GZipResponder)
+        to update with response metadata.
+    message
+        The ASGI "http.response.start" message containing response headers.
+    """
     responder.initial_message = message
     headers = Headers(raw=responder.initial_message["headers"])
     responder.content_encoding_set = "content-encoding" in headers
@@ -52,9 +64,15 @@ def _handle_response_start(
 
 
 class _MediaAwareIdentityResponder(IdentityResponder):
-    """IdentityResponder that excludes audio/video from compression."""
+    """IdentityResponder that excludes audio/video from compression.
+
+    This responder extends Starlette's IdentityResponder to use our extended
+    list of excluded content types that includes audio/ and video/ prefixes.
+    Used when the client does not support gzip compression.
+    """
 
     async def send_with_compression(self, message: Message) -> None:
+        """Process response messages, checking content type for exclusion."""
         if message["type"] == "http.response.start":
             _handle_response_start(self, message)
         else:
@@ -62,9 +80,15 @@ class _MediaAwareIdentityResponder(IdentityResponder):
 
 
 class _MediaAwareGZipResponder(GZipResponder):
-    """GZipResponder that excludes audio/video from compression."""
+    """GZipResponder that excludes audio/video from compression.
+
+    This responder extends Starlette's GZipResponder to use our extended
+    list of excluded content types that includes audio/ and video/ prefixes.
+    Used when the client supports gzip compression.
+    """
 
     async def send_with_compression(self, message: Message) -> None:
+        """Process response messages, checking content type for exclusion."""
         if message["type"] == "http.response.start":
             _handle_response_start(self, message)
         else:
